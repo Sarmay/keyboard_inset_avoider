@@ -1,6 +1,6 @@
 # keyboard_inset_avoider
 
-`keyboard_inset_avoider` provides a reliable Android keyboard inset fallback for devices where `MediaQuery.viewInsets.bottom` is incorrect, plus a simple layout helper for bottom input bars.
+`keyboard_inset_avoider` provides a reliable Android keyboard inset fallback for devices where `MediaQuery.viewInsets.bottom` is incorrect, plus a small set of layout-agnostic helpers for keeping input above the IME.
 
 ## What It Solves
 
@@ -10,7 +10,34 @@ This plugin works around that by:
 
 - reading Flutter's normal `MediaQuery.viewInsets.bottom`
 - listening to Android window layout changes as a fallback
-- exposing the larger of the two values to Flutter
+- exposing the larger of the two values as the **effective inset**
+- letting each widget decide — based on its own route — whether that inset
+  actually applies to it
+
+## Design
+
+The package is split so the layout is *optional*:
+
+| Layer | Component | What it does |
+|---|---|---|
+| Data | `KeyboardInsetAvoider` | Single source of the IME height; knows nothing about layout. Provides `effectiveInsetOf(context)` plus `isCurrentRoute(context)` / `effectiveInsetForCurrentRoute(context)`. |
+| Access | `KeyboardInsetBuilder` | Calls your builder with the effective inset. Apply it however you want (padding, transform, scroll offset…). |
+| Drop-in | `KeyboardInsetPadding` | `AnimatedPadding` that tracks the inset. Works the same in pages, dialogs, and sheets. |
+| Convenience | `KeyboardAvoidingLayout` | One-liner "body + anchored input bar" composition over the above. |
+
+"Body + bottom bar" is only one shape; prefer `KeyboardInsetPadding` or
+`KeyboardInsetBuilder` for anything else (dialogs, custom stacks, sheets).
+
+### Route isolation — why overlays don't move the page behind them
+
+The native inset is a screen-wide physical fact. When a dialog opens and its
+input grabs focus, the keyboard's height is the same value the page underneath
+would see. Without care, the page behind the dialog also lifts.
+
+All three consuming widgets default to `onlyWhenCurrentRoute: true`, so they
+only react while under the top-most (`ModalRoute.isCurrent`) route. If you
+genuinely want to always react regardless of route, pass
+`onlyWhenCurrentRoute: false`.
 
 ## Install
 
@@ -23,6 +50,8 @@ dependencies:
 For a published package, replace the `path` dependency with the pub version.
 
 ## Usage
+
+### Chat page with the convenience layout
 
 ```dart
 import 'package:flutter/material.dart';
@@ -58,10 +87,45 @@ class ChatPage extends StatelessWidget {
 }
 ```
 
+### Dialog that keeps its input above the IME
+
+`DialogInsetsLift`-style manual wrappers are no longer needed — wrap the
+dialog content with `KeyboardInsetPadding`:
+
+```dart
+showDialog<void>(
+  context: context,
+  builder: (context) => KeyboardInsetPadding(
+    child: AlertDialog(
+      content: const TextField(autofocus: true),
+    ),
+  ),
+);
+```
+
+The page behind the dialog stays put because `onlyWhenCurrentRoute` defaults
+to `true`.
+
+### Custom layout with `KeyboardInsetBuilder`
+
+```dart
+KeyboardInsetBuilder(
+  builder: (context, inset) => Transform.translate(
+    offset: Offset(0, -inset),
+    child: myWidget,
+  ),
+);
+```
+
 ## Public API
 
-- `KeyboardInsetAvoider.instance.effectiveInsetOf(context)`
+- `KeyboardInsetAvoider.instance`
+  - `nativeInset`
+  - `effectiveInsetOf(context)`
+  - `effectiveInsetForCurrentRoute(context)`
+  - `static isCurrentRoute(context)`
 - `KeyboardInsetBuilder`
+- `KeyboardInsetPadding`
 - `KeyboardAvoidingLayout`
 
 ## Notes

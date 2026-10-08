@@ -1,28 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import 'keyboard_inset_avoider.dart';
+import 'keyboard_inset_builder.dart';
 
+/// Kept for API compatibility so existing call sites keep compiling.
+///
+/// New code should prefer the lighter [KeyboardInsetBuilder] /
+/// `KeyboardInsetPadding` components; this typedef only exists so that
+/// `typedef KeyboardAvoidingLayout` users that imported the builder from
+/// this library still work.
+@Deprecated(
+  'Import KeyboardInsetWidgetBuilder from keyboard_inset_builder.dart.',
+)
 typedef KeyboardInsetWidgetBuilder =
     Widget Function(BuildContext context, double keyboardInset);
 
-class KeyboardInsetBuilder extends StatelessWidget {
-  const KeyboardInsetBuilder({super.key, required this.builder});
-
-  final KeyboardInsetWidgetBuilder builder;
-
-  @override
-  Widget build(BuildContext context) {
-    final avoider = KeyboardInsetAvoider.instance..ensureInitialized();
-
-    return AnimatedBuilder(
-      animation: avoider,
-      builder: (context, _) =>
-          builder(context, avoider.effectiveInsetOf(context)),
-    );
-  }
-}
-
+/// A convenience layout for the classic "scrollable body + anchored bottom
+/// input bar" shape.
+///
+/// This is now a thin composition over [KeyboardInsetBuilder]: the body gets
+/// bottom padding, the bottom bar is lifted by the effective inset, and by
+/// default the whole thing only reacts while it is under the current route
+/// (so a dialog on top won't move the page underneath it).
+///
+/// For shapes that are not "body + bottom bar" — dialogs, sheets, custom
+/// stacks — prefer [KeyboardInsetPadding] or [KeyboardInsetBuilder], which
+/// are layout-agnostic.
 class KeyboardAvoidingLayout extends StatefulWidget {
   const KeyboardAvoidingLayout({
     super.key,
@@ -34,6 +37,7 @@ class KeyboardAvoidingLayout extends StatefulWidget {
     this.animationDuration = const Duration(milliseconds: 220),
     this.animationCurve = Curves.easeOut,
     this.includeBottomSafeArea = false,
+    this.onlyWhenCurrentRoute = true,
   });
 
   final Widget body;
@@ -44,6 +48,11 @@ class KeyboardAvoidingLayout extends StatefulWidget {
   final Duration animationDuration;
   final Curve animationCurve;
   final bool includeBottomSafeArea;
+
+  /// When `true` (default), the layout stops reacting to the keyboard while
+  /// it is not the current route — preventing the page behind a dialog from
+  /// jumping when that dialog owns the keyboard.
+  final bool onlyWhenCurrentRoute;
 
   @override
   State<KeyboardAvoidingLayout> createState() => _KeyboardAvoidingLayoutState();
@@ -69,15 +78,13 @@ class _KeyboardAvoidingLayoutState extends State<KeyboardAvoidingLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final avoider = KeyboardInsetAvoider.instance..ensureInitialized();
+    final safeAreaBottom = widget.includeBottomSafeArea
+        ? MediaQuery.viewPaddingOf(context).bottom
+        : 0.0;
 
-    return AnimatedBuilder(
-      animation: avoider,
-      builder: (context, _) {
-        final keyboardInset = avoider.effectiveInsetOf(context);
-        final safeAreaBottom = widget.includeBottomSafeArea
-            ? MediaQuery.viewPaddingOf(context).bottom
-            : 0.0;
+    return KeyboardInsetBuilder(
+      onlyWhenCurrentRoute: widget.onlyWhenCurrentRoute,
+      builder: (context, keyboardInset) {
         final bottomOffset =
             (keyboardInset > 0 ? keyboardInset : safeAreaBottom) +
             widget.bottomSpacing;

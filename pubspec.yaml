@@ -1,6 +1,6 @@
 name: keyboard_inset_avoider
 description: "Reliable keyboard inset fallback and bottom-bar avoidance widgets for Flutter."
-version: 0.1.0
+version: 0.2.0
 homepage: https://github.com/Sarmay/keyboard_inset_avoider
 repository: https://github.com/Sarmay/keyboard_inset_avoider
 issue_tracker: https://github.com/Sarmay/keyboard_inset_avoider/issues
